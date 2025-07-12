@@ -39,55 +39,161 @@ const WeatherApp = () => {
   const [notifications, setNotifications] = useState(true);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
+  const [installPromptStatus, setInstallPromptStatus] = useState('checking');
 
   // PWA Install functionality
   useEffect(() => {
     const handleBeforeInstallPrompt = (e) => {
+      console.log('beforeinstallprompt event fired');
       e.preventDefault();
       setDeferredPrompt(e);
       setShowInstallButton(true);
+      setInstallPromptStatus('ready');
     };
 
     const handleAppInstalled = () => {
+      console.log('App installed successfully');
       setShowInstallButton(false);
       setDeferredPrompt(null);
     };
+
+    // Check if app is already installed
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isIOSInstalled = isIOS && window.navigator.standalone;
+    
+    if (isStandalone || isIOSInstalled) {
+      setShowInstallButton(false);
+      setInstallPromptStatus('installed');
+    } else {
+      setShowInstallButton(true); // Show button even if prompt not ready
+      setInstallPromptStatus('waiting');
+    }
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
+    // Force trigger install prompt after user interaction
+    const triggerInstallPrompt = () => {
+      console.log('User interacted, checking for install prompt...');
+      // Small delay to let the browser register user interaction
+      setTimeout(() => {
+        if (!deferredPrompt) {
+          console.log('No install prompt available yet');
+        }
+      }, 100);
+    };
+
+    // Listen for user interactions to potentially trigger install prompt
+    window.addEventListener('click', triggerInstallPrompt, { once: true });
+    window.addEventListener('touchstart', triggerInstallPrompt, { once: true });
+    
+    // Try to trigger the install prompt after a delay (for testing)
+    const checkForInstallPrompt = () => {
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      const checkInterval = setInterval(() => {
+        attempts++;
+        console.log(`Checking for install prompt... attempt ${attempts}`);
+        
+        if (deferredPrompt) {
+          console.log('Install prompt is now available!');
+          clearInterval(checkInterval);
+          setInstallPromptStatus('ready');
+        } else if (attempts >= maxAttempts) {
+          console.log('Install prompt not available after max attempts');
+          clearInterval(checkInterval);
+          setInstallPromptStatus('manual');
+        }
+      }, 2000); // Check every 2 seconds
+    };
+    
+    checkForInstallPrompt();
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener('click', triggerInstallPrompt);
+      window.removeEventListener('touchstart', triggerInstallPrompt);
     };
   }, []);
 
   const handleInstallApp = async () => {
-    if (!deferredPrompt) {
-      // If no install prompt available, show manual instructions
-      alert('To install this app:\n\n' +
-            'Chrome/Edge: Look for the install icon in the address bar\n' +
-            'Mobile: Use "Add to Home Screen" from browser menu\n' +
-            'iPhone: Use Share button → "Add to Home Screen"');
+    console.log('Install button clicked, deferredPrompt:', !!deferredPrompt);
+    
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      alert('App is already installed! 🎉');
       return;
     }
 
-    try {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      
-      if (outcome === 'accepted') {
-        console.log('User accepted the install prompt');
-        alert('App installed successfully! 🎉');
-      } else {
-        console.log('User dismissed the install prompt');
+    if (deferredPrompt) {
+      // Direct install available!
+      try {
+        console.log('Showing install prompt...');
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        
+        if (outcome === 'accepted') {
+          console.log('User accepted the install prompt');
+          alert('App installed successfully! 🎉\n\nYou can now find LaundryWeather on your home screen!');
+        } else {
+          console.log('User dismissed the install prompt');
+          alert('Installation cancelled. You can install later using the browser menu.');
+        }
+        
+        setDeferredPrompt(null);
+        setShowInstallButton(false);
+      } catch (error) {
+        console.error('Error installing app:', error);
+        alert('Installation failed. Please try using your browser\'s "Add to Home Screen" option.');
       }
+    } else {
+      // No direct install available, show instructions
+      console.log('No install prompt available, showing manual instructions');
       
-      setDeferredPrompt(null);
-      setShowInstallButton(false);
-    } catch (error) {
-      console.error('Error installing app:', error);
-      alert('Installation failed. Please try using your browser\'s "Add to Home Screen" option.');
+      // Try to trigger the install prompt by reloading or waiting
+      const shouldWait = confirm(
+        'Direct install not ready yet.\n\n' +
+        'Would you like to:\n' +
+        '• Click "OK" to wait a moment and try again\n' +
+        '• Click "Cancel" to see manual install instructions'
+      );
+      
+      if (shouldWait) {
+        alert('Please wait a moment, then try clicking the install button again.\n\nThe browser needs a moment to make the install prompt available.');
+        
+        // Wait a bit and check again
+        setTimeout(() => {
+          if (deferredPrompt) {
+            alert('Install prompt is now ready! Click the install button again.');
+          }
+        }, 2000);
+      } else {
+        // Show manual instructions
+        const isChrome = /Chrome/.test(navigator.userAgent);
+        const isEdge = /Edg/.test(navigator.userAgent);
+        const isMobile = /Mobile|Android|iPhone|iPad/.test(navigator.userAgent);
+        
+        let instructions = 'Manual Installation:\n\n';
+        
+        if (isChrome || isEdge) {
+          instructions += '1. Look for the install icon (📥) in the address bar\n';
+          instructions += '2. OR click the 3 dots menu → "Install LaundryWeather"\n';
+          instructions += '3. Click "Install" in the popup\n\n';
+        }
+        
+        if (isMobile) {
+          instructions += 'Mobile:\n';
+          instructions += '• Android: Menu → "Add to Home Screen"\n';
+          instructions += '• iPhone: Share button → "Add to Home Screen"\n\n';
+        }
+        
+        instructions += 'The app will then appear on your home screen like a native app!';
+        
+        alert(instructions);
+      }
     }
   };
 
@@ -353,11 +459,46 @@ const WeatherApp = () => {
               </div>
             </div>
           </div>
+          
+          <div className="mt-4 p-3 bg-white/10 rounded-xl">
+            {installPromptStatus === 'waiting' ? (
+              <div>
+                <p className="text-blue-100 text-sm mb-2">
+                  ⏳ <strong>Getting Ready:</strong> Preparing one-click install...
+                </p>
+                <p className="text-blue-200 text-xs">
+                  The browser is checking if the app meets PWA requirements
+                </p>
+              </div>
+            ) : installPromptStatus === 'ready' ? (
+              <div>
+                <p className="text-blue-100 text-sm mb-2">
+                  ✅ <strong>Ready to Install:</strong> One-click install is now available!
+                </p>
+                <p className="text-blue-200 text-xs">
+                  Click the button below for instant installation
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-blue-100 text-sm mb-2">
+                  💡 <strong>Manual Install:</strong> Look for the install icon (📥) in your browser's address bar!
+                </p>
+                <p className="text-blue-200 text-xs">
+                  Chrome/Edge: Address bar → Install icon | Mobile: Browser menu → "Add to Home Screen"
+                </p>
+              </div>
+            )}
+          </div>
+          
           <button 
             onClick={handleInstallApp}
             className="w-full mt-4 bg-white text-blue-600 font-semibold py-3 rounded-xl hover:bg-blue-50 transition-colors"
           >
-            Install App Now
+            {deferredPrompt ? '📥 Install App Now' : 
+             installPromptStatus === 'waiting' ? '⏳ Preparing Install...' :
+             installPromptStatus === 'installed' ? '✅ Already Installed' :
+             '📋 Install Instructions'}
           </button>
         </div>
 

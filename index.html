@@ -20,9 +20,15 @@
     <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144x144.png" />
     <link rel="apple-touch-icon" sizes="120x120" href="/icons/icon-128x128.png" />
     
-    <!-- Splash Screen -->
+    <!-- PWA Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="LaundryWeather" />
+    <meta name="msapplication-TileColor" content="#6366f1" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/manifest.json" as="fetch" crossorigin="anonymous" />
     
     <title>LaundryWeather - Smart Laundry Assistant</title>
   </head>
