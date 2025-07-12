@@ -5,6 +5,7 @@ import { weatherService } from '../services/weatherService';
 import { laundryPredictor } from '../utils/laundryPredictor';
 import LaundryTips from './LaundryTips';
 import NotificationSystem from './NotificationSystem';
+import PWAInstallButton from './PWAInstallButton';
 import { 
   MapPin, 
   Thermometer, 
@@ -22,7 +23,8 @@ import {
   Shirt,
   Timer,
   Star,
-  ChevronRight
+  ChevronRight,
+  Download
 } from 'lucide-react';
 
 const WeatherApp = () => {
@@ -35,6 +37,59 @@ const WeatherApp = () => {
   const [bestDays, setBestDays] = useState([]);
   const [bestTimes, setBestTimes] = useState([]);
   const [notifications, setNotifications] = useState(true);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallButton, setShowInstallButton] = useState(false);
+
+  // PWA Install functionality
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallButton(true);
+    };
+
+    const handleAppInstalled = () => {
+      setShowInstallButton(false);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) {
+      // If no install prompt available, show manual instructions
+      alert('To install this app:\n\n' +
+            'Chrome/Edge: Look for the install icon in the address bar\n' +
+            'Mobile: Use "Add to Home Screen" from browser menu\n' +
+            'iPhone: Use Share button → "Add to Home Screen"');
+      return;
+    }
+
+    try {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+        alert('App installed successfully! 🎉');
+      } else {
+        console.log('User dismissed the install prompt');
+      }
+      
+      setDeferredPrompt(null);
+      setShowInstallButton(false);
+    } catch (error) {
+      console.error('Error installing app:', error);
+      alert('Installation failed. Please try using your browser\'s "Add to Home Screen" option.');
+    }
+  };
 
   const requestLocation = async () => {
     setLoading(true);
@@ -140,6 +195,25 @@ const WeatherApp = () => {
             )}
           </Button>
           
+          {/* Install App Prompt */}
+          {showInstallButton && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-left">
+              <div className="flex items-center space-x-3">
+                <Download className="w-5 h-5 text-blue-600" />
+                <div className="flex-1">
+                  <h3 className="font-medium text-blue-900">Install LaundryWeather</h3>
+                  <p className="text-blue-700 text-sm">Get the full app experience with offline access</p>
+                </div>
+              </div>
+              <Button 
+                onClick={handleInstallApp}
+                className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg"
+              >
+                Install App
+              </Button>
+            </div>
+          )}
+          
           {error && (
             <Alert variant="destructive" className="text-left">
               <AlertTriangle className="h-4 w-4" />
@@ -148,6 +222,9 @@ const WeatherApp = () => {
             </Alert>
           )}
         </div>
+        
+        {/* PWA Install Button */}
+        <PWAInstallButton />
       </div>
     );
   }
@@ -193,6 +270,14 @@ const WeatherApp = () => {
               bestTimes={bestTimes}
               onNotificationToggle={setNotifications}
             />
+            {/* Always show install button for testing */}
+            <button 
+              onClick={handleInstallApp}
+              className="p-2 rounded-lg bg-blue-100 hover:bg-blue-200 transition-colors"
+              title="Install App"
+            >
+              <Download className="w-5 h-5 text-blue-600" />
+            </button>
             <button className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
               <Settings className="w-5 h-5 text-gray-600" />
             </button>
@@ -253,6 +338,27 @@ const WeatherApp = () => {
             
             <p className="text-gray-700 text-sm">{recommendation.message}</p>
           </div>
+        </div>
+
+        {/* Install App Prompt */}
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <Download className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg">Install LaundryWeather</h3>
+                <p className="text-blue-100 text-sm">Get the full app experience with offline access & notifications</p>
+              </div>
+            </div>
+          </div>
+          <button 
+            onClick={handleInstallApp}
+            className="w-full mt-4 bg-white text-blue-600 font-semibold py-3 rounded-xl hover:bg-blue-50 transition-colors"
+          >
+            Install App Now
+          </button>
         </div>
 
         {/* Quick Actions */}
@@ -499,6 +605,9 @@ const WeatherApp = () => {
           Refresh Data
         </Button>
       </div>
+
+      {/* PWA Install Button */}
+      <PWAInstallButton />
     </div>
   );
 };
